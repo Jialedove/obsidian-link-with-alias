@@ -6,6 +6,5 @@
 	"description": "Preserve wikilink surface text, aliases, and title metadata as note names evolve",
 	"author": "Dove",
 	"authorUrl": "https://github.com/Jialedove",
-	"fundingUrl": "https://www.buymeacoffee.com/pavel.knowledge",
 	"isDesktopOnly": false
 }
