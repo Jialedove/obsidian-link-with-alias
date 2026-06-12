@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-context-links",
-	"version": "1.0.14",
+	"version": "1.0.15",
 	"description": "Preserve wikilink surface text, aliases, and title metadata as note names evolve",
 	"main": "main.js",
 	"scripts": {

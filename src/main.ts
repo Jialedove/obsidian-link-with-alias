@@ -160,7 +160,8 @@ export default class LinkWithAliasPlugin extends Plugin {
 
 	async loadSettings() {
 		const data = await this.loadData();
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, data || {});
+		const { preserveContext: _preserveContext, ...settingsData } = data || {};
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, settingsData);
 		this.preserveContextOverrides = data?.preserveContextOverrides || [];
 		this.generatedPreserveContextLinks = data?.generatedPreserveContextLinks || [];
 	}
@@ -177,8 +178,12 @@ export default class LinkWithAliasPlugin extends Plugin {
 		return this.applyingEditorChange;
 	}
 
-	applyCompletedLinkFreeze(view: EditorView, from: number, to: number, replacement: string, surfaceStart: number, surfaceEnd: number): void {
-		if (!this.settings.preserveContext || !this.settings.freezeCompletionLinks) {
+	async applyCompletedLinkFreeze(view: EditorView, from: number, to: number, replacement: string, surfaceStart: number, surfaceEnd: number): Promise<void> {
+		const file = this.app.workspace.getActiveFile();
+		const target = replacement.substring(2, replacement.indexOf("|"));
+		const surfaceText = replacement.substring(replacement.indexOf("|") + 1, replacement.length - 2);
+		const targetExists = file ? this.app.metadataCache.getFirstLinkpathDest(target, file.path) != null : true;
+		if (!this.settings.freezeCompletionLinks && targetExists) {
 			return;
 		}
 		this.applyingEditorChange = true;
@@ -190,23 +195,20 @@ export default class LinkWithAliasPlugin extends Plugin {
 		} finally {
 			this.applyingEditorChange = false;
 		}
-		const file = this.app.workspace.getActiveFile();
 		if (file) {
-			const target = replacement.substring(2, replacement.indexOf("|"));
-			const surfaceText = replacement.substring(replacement.indexOf("|") + 1, replacement.length - 2);
-			this.generatedPreserveContextLinks = appendUniqueOverrides(this.generatedPreserveContextLinks, [
-				{
-					sourcePath: file.path,
-					targetPath: `${target}.md`,
-					surfaceText,
-				},
-			]);
+			await this.ensureLinkTargetExists(target, file.path);
+			this.recordGeneratedPreserveContextLink(file.path, target, surfaceText);
 			this.saveSettings();
 		}
 	}
 
+	addAliasForCompletedLink(target: string, surfaceText: string): void {
+		const file = this.app.workspace.getActiveFile();
+		this.addMissingAliasForTarget(target, surfaceText, file?.path);
+	}
+
 	trackManualUnfreeze(update: ViewUpdate): void {
-		if (!this.settings.preserveContext || !this.settings.enableUserOverrideRegistry || this.generatedPreserveContextLinks.length === 0) {
+		if (!this.settings.enableUserOverrideRegistry || this.generatedPreserveContextLinks.length === 0) {
 			return;
 		}
 		const file = this.app.workspace.getActiveFile();
@@ -346,7 +348,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 	}
 
 	private async handleFileRename(file: TAbstractFile, oldPath: string): Promise<void> {
-		if (!this.settings.preserveContext || !(file instanceof TFile) || file.extension !== "md") {
+		if (!(file instanceof TFile) || file.extension !== "md") {
 			return;
 		}
 		const oldTitle = getBasename(oldPath);
@@ -390,10 +392,6 @@ export default class LinkWithAliasPlugin extends Plugin {
 	}
 
 	private async freezeExistingLinksInVault(): Promise<void> {
-		if (!this.settings.preserveContext) {
-			new Notice(t(this.settings.language, "notice.preserveContextDisabled"));
-			return;
-		}
 		let changedFiles = 0;
 		let changedLinks = 0;
 		for (const file of this.app.vault.getMarkdownFiles()) {
@@ -432,6 +430,13 @@ export default class LinkWithAliasPlugin extends Plugin {
 			if (lastLink.linkText) {
 				//Reset the link text in case the obsidian autocompletion changed it
 				setLinkText(cacheLink, editor, lastLink.linkText);
+			} else if (this.settings.freezeCompletionLinks && cacheLink.displayText == null && cacheLink.link) {
+				setLinkText(cacheLink, editor, cacheLink.link);
+				lastLink.linkText = cacheLink.link;
+				if (lastLink.file) {
+					this.recordGeneratedPreserveContextLink(lastLink.file.path, cacheLink.link, cacheLink.link);
+					this.saveSettings();
+				}
 			}
 			if (lastLink.makeAlias) {
 				//now we can create an alias
@@ -454,7 +459,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 	 * @returns
 	 */
 	private async addMissingAlias(cacheLink: ReferenceCache, sourcePath: string | undefined): Promise<void> {
-		if (!cacheLink.original.contains("|") || !cacheLink.displayText) {
+		if (!cacheLink.original.includes("|") || !cacheLink.displayText) {
 			//there is no special display text = no alias to add
 			return;
 		}
@@ -464,6 +469,18 @@ export default class LinkWithAliasPlugin extends Plugin {
 			//there is no link target
 			return;
 		}
+		await this.addMissingAliasForTarget(linkTargetPath, cacheLink.displayText, sourcePath);
+	}
+
+	private async addMissingAliasForTarget(linkTargetPath: string, surfaceText: string, sourcePath: string | undefined): Promise<void> {
+		if (!surfaceText) {
+			return;
+		}
+		const target = await this.ensureLinkTargetExists(linkTargetPath, sourcePath);
+		await addMissingAliasesIntoFile(this.app.fileManager, target, [surfaceText]);
+	}
+
+	private async ensureLinkTargetExists(linkTargetPath: string, sourcePath: string | undefined): Promise<TFile> {
 		const target = await getOrCreateFileOfLink(this.app, linkTargetPath, sourcePath);
 		if (isNewFile(target)) {
 			const templaterPlugin = getTemplaterPlugin(this.app);
@@ -471,7 +488,17 @@ export default class LinkWithAliasPlugin extends Plugin {
 				await templaterPlugin.waitUntilDone();
 			}
 		}
-		await addMissingAliasesIntoFile(this.app.fileManager, target, [cacheLink.displayText]);
+		return target;
+	}
+
+	private recordGeneratedPreserveContextLink(sourcePath: string, target: string, surfaceText: string): void {
+		this.generatedPreserveContextLinks = appendUniqueOverrides(this.generatedPreserveContextLinks, [
+			{
+				sourcePath,
+				targetPath: `${target}.md`,
+				surfaceText,
+			},
+		]);
 	}
 }
 

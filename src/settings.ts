@@ -1,12 +1,11 @@
 import { App, DropdownComponent, PluginSettingTab, Setting, ToggleComponent } from "obsidian";
-import { LANGUAGE_OPTIONS, Language, t } from "./i18n";
+import { LANGUAGE_OPTIONS, Language, TranslationKey, t } from "./i18n";
 import { default as FrontmatterLinksPlugin, default as LinkWithAliasPlugin } from "./main";
 
 export interface LinksSettings {
 	language: Language;
 	copyDisplayText: boolean;
 	capitalizeFileName: boolean;
-	preserveContext: boolean;
 	freezeCompletionLinks: boolean;
 	freezeRenamedPlainLinks: boolean;
 	addOldTitleAliasOnRename: boolean;
@@ -17,12 +16,27 @@ export const DEFAULT_SETTINGS: LinksSettings = {
 	language: "en",
 	copyDisplayText: true,
 	capitalizeFileName: true,
-	preserveContext: true,
-	freezeCompletionLinks: true,
+	freezeCompletionLinks: false,
 	freezeRenamedPlainLinks: true,
 	addOldTitleAliasOnRename: true,
 	enableUserOverrideRegistry: true,
 };
+
+type SwitchSettingKey =
+	| "setting.freezeCompletionLinks"
+	| "setting.freezeRenamedPlainLinks"
+	| "setting.addOldTitleAliasOnRename"
+	| "setting.enableUserOverrideRegistry";
+
+function buildSwitchDesc(language: Language, key: SwitchSettingKey): DocumentFragment {
+	const fragment = document.createDocumentFragment();
+	[`${key}.desc`, `${key}.exampleOn`, `${key}.exampleOff`].forEach((translationKey) => {
+		const line = document.createElement("div");
+		line.textContent = t(language, translationKey as TranslationKey);
+		fragment.appendChild(line);
+	});
+	return fragment;
+}
 
 export class LinksSettingTab extends PluginSettingTab {
 	private plugin: LinkWithAliasPlugin;
@@ -50,41 +64,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName(t(this.plugin.settings.language, "setting.copyDisplayText.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.copyDisplayText.desc"))
-			.addToggle((component: ToggleComponent) => {
-				component.setValue(this.plugin.settings.copyDisplayText);
-				component.onChange((value: boolean) => {
-					this.plugin.settings.copyDisplayText = value;
-					this.plugin.saveSettings();
-				});
-			});
-		new Setting(this.containerEl)
-			.setName(t(this.plugin.settings.language, "setting.capitalizeFileName.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.capitalizeFileName.desc"))
-			.setDisabled(!this.plugin.settings.copyDisplayText)
-			.addToggle((component: ToggleComponent) => {
-				component.setValue(this.plugin.settings.capitalizeFileName);
-				component.onChange((value: boolean) => {
-					this.plugin.settings.capitalizeFileName = value;
-					this.plugin.saveSettings();
-				});
-			});
-		new Setting(this.containerEl)
-			.setName(t(this.plugin.settings.language, "setting.preserveContext.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.preserveContext.desc"))
-			.addToggle((component: ToggleComponent) => {
-				component.setValue(this.plugin.settings.preserveContext);
-				component.onChange((value: boolean) => {
-					this.plugin.settings.preserveContext = value;
-					this.plugin.saveSettings();
-					this.display();
-				});
-			});
-		new Setting(this.containerEl)
 			.setName(t(this.plugin.settings.language, "setting.freezeCompletionLinks.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.freezeCompletionLinks.desc"))
-			.setDisabled(!this.plugin.settings.preserveContext)
+			.setDesc(buildSwitchDesc(this.plugin.settings.language, "setting.freezeCompletionLinks"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.freezeCompletionLinks);
 				component.onChange((value: boolean) => {
@@ -94,8 +75,7 @@ export class LinksSettingTab extends PluginSettingTab {
 			});
 		new Setting(this.containerEl)
 			.setName(t(this.plugin.settings.language, "setting.freezeRenamedPlainLinks.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.freezeRenamedPlainLinks.desc"))
-			.setDisabled(!this.plugin.settings.preserveContext)
+			.setDesc(buildSwitchDesc(this.plugin.settings.language, "setting.freezeRenamedPlainLinks"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.freezeRenamedPlainLinks);
 				component.onChange((value: boolean) => {
@@ -105,8 +85,7 @@ export class LinksSettingTab extends PluginSettingTab {
 			});
 		new Setting(this.containerEl)
 			.setName(t(this.plugin.settings.language, "setting.addOldTitleAliasOnRename.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.addOldTitleAliasOnRename.desc"))
-			.setDisabled(!this.plugin.settings.preserveContext)
+			.setDesc(buildSwitchDesc(this.plugin.settings.language, "setting.addOldTitleAliasOnRename"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.addOldTitleAliasOnRename);
 				component.onChange((value: boolean) => {
@@ -116,8 +95,7 @@ export class LinksSettingTab extends PluginSettingTab {
 			});
 		new Setting(this.containerEl)
 			.setName(t(this.plugin.settings.language, "setting.enableUserOverrideRegistry.name"))
-			.setDesc(t(this.plugin.settings.language, "setting.enableUserOverrideRegistry.desc"))
-			.setDisabled(!this.plugin.settings.preserveContext)
+			.setDesc(buildSwitchDesc(this.plugin.settings.language, "setting.enableUserOverrideRegistry"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.enableUserOverrideRegistry);
 				component.onChange((value: boolean) => {

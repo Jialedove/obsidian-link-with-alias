@@ -30,35 +30,52 @@ For example:
 
 ## Features
 
-### 1. Freeze completed links by default
+### 1. New-note links are frozen on creation
 
-When you type `[[` and choose a target from Obsidian completion, the plugin turns a plain link into a display-text link:
+When you type a wikilink to a note that does not exist yet, the plugin creates the target note and writes the link with display text:
 
 ```md
-[[Target]]
+[[New note]]
 ```
 
 becomes:
 
 ```md
-[[Target|Target]]
+[[New note|New note]]
 ```
 
-After insertion, the cursor selects the display-text region so you can immediately change it to the actual contextual wording.
+This keeps the newly created note name as the visible wording from the beginning.
 
-If the text you typed was an alias or search term, such as:
+For existing notes, the setting `Freeze completed links` controls whether Obsidian completion should also freeze plain links. It is off by default:
 
 ```md
-[[horse
+[[Existing note]]
 ```
 
-and completion resolves it to `International Chess: Knight`, the plugin keeps what you typed:
+When the setting is enabled, completion writes:
 
 ```md
-[[International Chess: Knight|horse]]
+[[Existing note|Existing note]]
 ```
 
-### 2. Create links and write aliases
+### 2. Write aliases only from explicit display text
+
+If you manually type a display text with `|`, the plugin treats it as an intentional alias:
+
+```md
+[[New note|nickname]]
+```
+
+The target note is created if needed, and its frontmatter receives:
+
+```yaml
+aliases:
+  - nickname
+```
+
+Plain links without `|` do not write aliases just because they were created.
+
+### 3. Create links from selected text
 
 The original plugin behavior is preserved: select text, run `Create context link with alias`, and the plugin creates a display-text link while writing the display text into the target note's `aliases`.
 
@@ -81,9 +98,9 @@ aliases:
   - horse
 ```
 
-Aliases are deduplicated and existing frontmatter is preserved as much as possible.
+Aliases are deduplicated, aliases identical to the file name are skipped, and existing frontmatter is preserved as much as possible.
 
-### 3. Preserve old titles on rename
+### 4. Preserve old titles on rename
 
 When a file is renamed from `International Chess: Knight` to `Chess: Knight`, the plugin adds the old title to the file's aliases:
 
@@ -122,7 +139,7 @@ becomes:
 [[Chess: Knight|International Chess: Knight]]
 ```
 
-### 4. Respect manual changes
+### 5. Respect manual changes
 
 User edits win over automation. If the plugin generated display text and you later remove it:
 
@@ -138,7 +155,7 @@ to:
 
 the plugin records that choice and avoids re-freezing the same link on later renames.
 
-### 5. Migrate existing vaults
+### 6. Migrate existing vaults
 
 The command:
 
@@ -160,7 +177,7 @@ to:
 
 This command never runs automatically. Back up your vault or commit your current state before running it.
 
-### 6. Bilingual plugin UI
+### 7. Bilingual plugin UI
 
 The plugin defaults to English. In settings, choose `English` or `中文` to localize:
 
@@ -210,13 +227,10 @@ Releases should provide the `main.js`, `manifest.json`, and plugin zip required 
 ## Settings
 
 - `Language`: choose English or Chinese for settings, commands, and notices.
-- `Preserve Context`: enable or disable preserve-context mode.
-- `Freeze completed links`: freeze links after Obsidian completion.
-- `Freeze plain links after rename`: freeze plain links with the old title after renaming.
-- `Add old title as alias`: write the old title into target-note aliases on rename.
-- `Respect manual unfrozen links`: remember when a user manually removes generated display text.
-- `Copy selected text as link file`: original plugin option for using selected text as the target file name.
-- `Capitalize link file name`: original plugin option for capitalizing the target file name.
+- `Freeze completed links`: for existing notes, turn completion from `[[Target]]` into `[[Target|Target]]`; off keeps Obsidian's native `[[Target]]`.
+- `Freeze plain links after rename`: when `A` is renamed to `B`, on converts `[[A]]` into `[[B|A]]`; off keeps Obsidian's native `[[B]]`.
+- `Add old title as alias`: when `A` is renamed to `B`, on writes `A` into `B`'s `aliases`; off leaves aliases unchanged.
+- `Respect manual unfrozen links`: when you change `[[Target|Text]]` back to `[[Target]]`, on remembers that choice for later renames.
 
 ## Development
 

@@ -2,7 +2,7 @@ import { EditorState, Transaction } from "@codemirror/state";
 import { EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 
 import type LinkWithAliasPlugin from "./main";
-import { freezePlainLink } from "./PreserveContext";
+import { completePlainLink, getCompletedLinkAlias } from "./PreserveContext";
 
 export function createPreserveContextEditorExtension(plugin: LinkWithAliasPlugin) {
 	return ViewPlugin.fromClass(
@@ -15,29 +15,82 @@ export function createPreserveContextEditorExtension(plugin: LinkWithAliasPlugin
 				if (userEvent === "input.paste" || userEvent === "delete.selection") {
 					return;
 				}
-				if (userEvent !== "input.complete") {
+				const query = getQueryBeforeCursor(update.startState);
+				const action = getCompletedLinkAction(update.state, query);
+				if (!shouldHandleCompletedLinkAction(action, query, userEvent)) {
 					plugin.trackManualUnfreeze(update);
 					return;
 				}
-				const query = getQueryBeforeCursor(update.startState);
-				const frozen = freezeLinkAroundCursor(update.state, query);
-				if (frozen) {
-					plugin.applyCompletedLinkFreeze(update.view, frozen.from, frozen.to, frozen.replacement, frozen.surfaceStart, frozen.surfaceEnd);
+				if (!action) {
+					return;
 				}
+				handleCompletedLinkAction(plugin, update.view, action);
 			}
 		},
 	);
 }
 
-interface FrozenLinkEdit {
+interface FrozenLinkAction {
+	type: "freeze";
 	from: number;
 	to: number;
+	raw: string;
 	replacement: string;
 	surfaceStart: number;
 	surfaceEnd: number;
 }
 
-function freezeLinkAroundCursor(state: EditorState, query?: string): FrozenLinkEdit | undefined {
+interface AliasLinkAction {
+	type: "alias";
+	target: string;
+	surfaceText: string;
+}
+
+export type CompletedLinkAction = FrozenLinkAction | AliasLinkAction;
+type CompletedLinkScheduler = (callback: () => void) => void;
+
+export function handleCompletedLinkAction(
+	plugin: LinkWithAliasPlugin,
+	view: EditorView,
+	action: CompletedLinkAction,
+	schedule: CompletedLinkScheduler = (callback) => {
+		const win = view.dom.ownerDocument.defaultView || window;
+		win.requestAnimationFrame(callback);
+	},
+): void {
+	if (action.type === "alias") {
+		plugin.addAliasForCompletedLink(action.target, action.surfaceText);
+		return;
+	}
+	schedule(() => {
+		if (view.state.doc.sliceString(action.from, action.to) !== action.raw) {
+			return;
+		}
+		plugin.applyCompletedLinkFreeze(view, action.from, action.to, action.replacement, action.surfaceStart, action.surfaceEnd);
+	});
+}
+
+export function shouldHandleCompletedLinkAction(
+	action: CompletedLinkAction | undefined,
+	query: string | undefined,
+	userEvent: string | undefined,
+): boolean {
+	if (!action) {
+		return false;
+	}
+	if (userEvent === "input.complete") {
+		return true;
+	}
+	if (action.type === "alias") {
+		return true;
+	}
+	if (userEvent?.startsWith("input.type")) {
+		return false;
+	}
+	return query != null;
+}
+
+export function getCompletedLinkAction(state: EditorState, query?: string): CompletedLinkAction | undefined {
 	const cursor = state.selection.main.head;
 	const line = state.doc.lineAt(cursor);
 	const localCursor = cursor - line.from;
@@ -50,19 +103,20 @@ function freezeLinkAroundCursor(state: EditorState, query?: string): FrozenLinkE
 		return;
 	}
 	const raw = line.text.substring(before, after + 2);
-	const replacement = freezePlainLink(raw, query);
-	if (!replacement) {
-		return;
-	}
-	const surface = query || raw.substring(2, raw.length - 2);
 	const from = line.from + before;
 	const to = line.from + after + 2;
-	const surfaceStart = from + replacement.length - surface.length - 2;
-	const surfaceEnd = surfaceStart + surface.length;
-	return { from, to, replacement, surfaceStart, surfaceEnd };
+	const frozen = completePlainLink(raw, from, query);
+	if (frozen) {
+		return { type: "freeze", from, to, raw, ...frozen };
+	}
+	const alias = getCompletedLinkAlias(raw);
+	if (alias) {
+		return { type: "alias", ...alias };
+	}
+	return;
 }
 
-function getQueryBeforeCursor(state: EditorState): string | undefined {
+export function getQueryBeforeCursor(state: EditorState): string | undefined {
 	const cursor = state.selection.main.head;
 	const line = state.doc.lineAt(cursor);
 	const localCursor = cursor - line.from;
@@ -75,5 +129,5 @@ function getQueryBeforeCursor(state: EditorState): string | undefined {
 	if (query.includes("]") || query.includes("|")) {
 		return;
 	}
-	return query || undefined;
+	return query;
 }

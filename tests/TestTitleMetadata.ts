@@ -30,4 +30,32 @@ describe("title metadata", () => {
 
 		expect(frontmatter).toEqual({ title: "New title", aliases: ["Old title"] });
 	});
+
+	it("does not add an alias that matches the file basename", async () => {
+		const frontmatter: Record<string, unknown> = {};
+		const fileManager = {
+			processFrontMatter: jest.fn(async (_file, callback) => {
+				callback(frontmatter);
+			}),
+		};
+		const file = { basename: "Target" };
+
+		await addMissingAliasesIntoFile(fileManager as never, file as never, ["Target", "Display text"]);
+
+		expect(frontmatter).toEqual({ aliases: ["Display text"] });
+	});
+
+	it("removes existing aliases that match the file basename", async () => {
+		const frontmatter: Record<string, unknown> = { aliases: ["Target", "Display text"] };
+		const fileManager = {
+			processFrontMatter: jest.fn(async (_file, callback) => {
+				callback(frontmatter);
+			}),
+		};
+		const file = { basename: "target" };
+
+		await addMissingAliasesIntoFile(fileManager as never, file as never, []);
+
+		expect(frontmatter).toEqual({ aliases: ["Display text"] });
+	});
 });

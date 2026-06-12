@@ -14,6 +14,17 @@ export interface RenameRewriteResult extends RewriteResult {
 	autoFrozen: PreserveContextOverride[];
 }
 
+export interface CompletedPlainLinkEdit {
+	replacement: string;
+	surfaceStart: number;
+	surfaceEnd: number;
+}
+
+export interface CompletedLinkAlias {
+	target: string;
+	surfaceText: string;
+}
+
 interface Wikilink {
 	start: number;
 	end: number;
@@ -31,6 +42,32 @@ export function freezePlainLink(rawLink: string, surfaceText?: string): string |
 		return;
 	}
 	return makeWikilink(link.target, surfaceText || link.target);
+}
+
+export function completePlainLink(rawLink: string, start: number, surfaceText?: string): CompletedPlainLinkEdit | undefined {
+	const link = parseWikilink(rawLink, start);
+	if (!link || link.embed || link.displayText != null || !link.target) {
+		return;
+	}
+	const surface = surfaceText || link.target;
+	const replacement = makeWikilink(link.target, surface);
+	const surfaceStart = start + replacement.length - surface.length - 2;
+	return {
+		replacement,
+		surfaceStart,
+		surfaceEnd: surfaceStart + surface.length,
+	};
+}
+
+export function getCompletedLinkAlias(rawLink: string): CompletedLinkAlias | undefined {
+	const link = parseWikilink(rawLink, 0);
+	if (!link || link.embed || link.displayText == null || !link.target || !link.displayText) {
+		return;
+	}
+	return {
+		target: link.target,
+		surfaceText: link.displayText,
+	};
 }
 
 export function freezeExistingLinksInMarkdown(markdown: string): RewriteResult {

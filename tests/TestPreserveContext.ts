@@ -1,4 +1,5 @@
 import {
+	completePlainLink,
 	freezeExistingLinksInMarkdown,
 	freezePlainLink,
 	recordManualPlainLinkOverrides,
@@ -12,6 +13,22 @@ describe("PreserveContext", () => {
 
 	it("freezes a completion result with the user query as surface text", () => {
 		expect(freezePlainLink("[[International chess: Knight]]", "马")).toEqual("[[International chess: Knight|马]]");
+	});
+
+	it("returns a completed-link freeze edit with the display text selected", () => {
+		expect(completePlainLink("[[Target note]]", 0)).toEqual({
+			replacement: "[[Target note|Target note]]",
+			surfaceStart: 14,
+			surfaceEnd: 25,
+		});
+	});
+
+	it("uses the typed alias as display text for completed links", () => {
+		expect(completePlainLink("[[International chess: Knight]]", 0, "马")).toEqual({
+			replacement: "[[International chess: Knight|马]]",
+			surfaceStart: 30,
+			surfaceEnd: 31,
+		});
 	});
 
 	it("does not freeze embeds or links that already have display text", () => {

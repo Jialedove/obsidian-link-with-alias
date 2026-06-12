@@ -13,16 +13,19 @@ export async function addMissingAliasesIntoFile(fileManager: FileManager, file: 
 	await fileManager.processFrontMatter(file, (frontmatter) => {
 		if (typeof frontmatter == "object") {
 			const aliasPropName = aliasPropertyNames.find((name) => frontmatter[name] != null) || aliasPropertyNames[0];
-			const existingAliases = toArray<string>(frontmatter[aliasPropName]);
+			const lowercaseBasename = file.basename.toLocaleLowerCase();
+			const existingAliases = toArray<string>(frontmatter[aliasPropName]).filter((alias) => alias.toLocaleLowerCase() !== lowercaseBasename);
 			const toBeAdded: string[] = [];
 			requiredAliases.forEach((requiredAlias) => {
 				const lowercaseRequiredAlias = requiredAlias.toLocaleLowerCase();
+				if (lowercaseRequiredAlias === lowercaseBasename) {
+					return;
+				}
 				if (!existingAliases.some((alias) => alias.toLocaleLowerCase() == lowercaseRequiredAlias)) {
 					toBeAdded.push(requiredAlias);
 				}
 			});
-			if (toBeAdded.length === 0) {
-				//alias already exists. Do nothing
+			if (toBeAdded.length === 0 && existingAliases.length === toArray<string>(frontmatter[aliasPropName]).length) {
 				return;
 			}
 			const newAliases = [...existingAliases, ...toBeAdded];
