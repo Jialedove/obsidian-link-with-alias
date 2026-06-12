@@ -1,7 +1,9 @@
-import { App, PluginSettingTab, Setting, ToggleComponent } from "obsidian";
+import { App, DropdownComponent, PluginSettingTab, Setting, ToggleComponent } from "obsidian";
+import { LANGUAGE_OPTIONS, Language, t } from "./i18n";
 import { default as FrontmatterLinksPlugin, default as LinkWithAliasPlugin } from "./main";
 
 export interface LinksSettings {
+	language: Language;
 	copyDisplayText: boolean;
 	capitalizeFileName: boolean;
 	preserveContext: boolean;
@@ -12,6 +14,7 @@ export interface LinksSettings {
 }
 
 export const DEFAULT_SETTINGS: LinksSettings = {
+	language: "en",
 	copyDisplayText: true,
 	capitalizeFileName: true,
 	preserveContext: true,
@@ -32,8 +35,23 @@ export class LinksSettingTab extends PluginSettingTab {
 	display() {
 		this.containerEl.empty();
 		new Setting(this.containerEl)
-			.setName("Copy selected text as link file")
-			.setDesc("When selected then creates link `[[text|text]]`, otherwise `[[|text]]`.")
+			.setName(t(this.plugin.settings.language, "setting.language.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.language.desc"))
+			.addDropdown((component: DropdownComponent) => {
+				Object.entries(LANGUAGE_OPTIONS).forEach(([value, label]) => {
+					component.addOption(value, label);
+				});
+				component.setValue(this.plugin.settings.language);
+				component.onChange((value: Language) => {
+					this.plugin.settings.language = value;
+					this.plugin.saveSettings();
+					this.plugin.refreshLanguage();
+					this.display();
+				});
+			});
+		new Setting(this.containerEl)
+			.setName(t(this.plugin.settings.language, "setting.copyDisplayText.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.copyDisplayText.desc"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.copyDisplayText);
 				component.onChange((value: boolean) => {
@@ -42,8 +60,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Capitalize link file name")
-			.setDesc("When selected then `text` creates link `[[Text|text]]`, otherwise `[[text|text]]`.")
+			.setName(t(this.plugin.settings.language, "setting.capitalizeFileName.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.capitalizeFileName.desc"))
 			.setDisabled(!this.plugin.settings.copyDisplayText)
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.capitalizeFileName);
@@ -53,8 +71,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Preserve Context")
-			.setDesc("Freeze surface text in wikilinks so note names can evolve without losing the original context.")
+			.setName(t(this.plugin.settings.language, "setting.preserveContext.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.preserveContext.desc"))
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.preserveContext);
 				component.onChange((value: boolean) => {
@@ -64,8 +82,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Freeze completed links")
-			.setDesc("After Obsidian link completion, convert plain links like [[Target]] into [[Target|Target]] or [[Target|typed text]].")
+			.setName(t(this.plugin.settings.language, "setting.freezeCompletionLinks.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.freezeCompletionLinks.desc"))
 			.setDisabled(!this.plugin.settings.preserveContext)
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.freezeCompletionLinks);
@@ -75,8 +93,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Freeze plain links after rename")
-			.setDesc("When a note is renamed, convert plain links to keep the old title as display text.")
+			.setName(t(this.plugin.settings.language, "setting.freezeRenamedPlainLinks.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.freezeRenamedPlainLinks.desc"))
 			.setDisabled(!this.plugin.settings.preserveContext)
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.freezeRenamedPlainLinks);
@@ -86,8 +104,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Add old title as alias")
-			.setDesc("When a note is renamed, add the previous title to its aliases frontmatter.")
+			.setName(t(this.plugin.settings.language, "setting.addOldTitleAliasOnRename.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.addOldTitleAliasOnRename.desc"))
 			.setDisabled(!this.plugin.settings.preserveContext)
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.addOldTitleAliasOnRename);
@@ -97,8 +115,8 @@ export class LinksSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(this.containerEl)
-			.setName("Respect manual unfrozen links")
-			.setDesc("Remember when a user removes generated display text and do not add it back on later renames.")
+			.setName(t(this.plugin.settings.language, "setting.enableUserOverrideRegistry.name"))
+			.setDesc(t(this.plugin.settings.language, "setting.enableUserOverrideRegistry.desc"))
 			.setDisabled(!this.plugin.settings.preserveContext)
 			.addToggle((component: ToggleComponent) => {
 				component.setValue(this.plugin.settings.enableUserOverrideRegistry);

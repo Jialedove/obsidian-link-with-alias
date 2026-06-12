@@ -1,199 +1,224 @@
 # Link with Alias: Preserve Context
 
-这是一个基于 Obsidian 社区插件 `Link with Alias` 的 fork。新的设计目标是 **Preserve Context（保留语境）**：让知识库记录的不只是“今天这个概念叫什么”，也记录“当时的自己是如何称呼它的”。
+[English](README.md) | [中文](README.zh-CN.md)
 
-## 核心理念
+This is a fork of the Obsidian community plugin `Link with Alias`. The new direction is **Preserve Context**: a vault should remember not only what a concept is called today, but also how it was named in the writing context where it first appeared.
 
-Obsidian 的内部链接里有三层信息：
+Suggested GitHub About text:
 
-- **Canonical Name（规范名称）**：当前文件名，可以随着理解演化而重命名。
-- **Aliases（历史称呼）**：旧标题、同义词、曾用表达，保存在目标笔记 frontmatter。
-- **Surface Form（语境表达）**：正文里作者当时实际写下的词，保存在 wikilink 的显示文本中。
-
-Preserve Context 的默认策略是：文件名可以变，正文中的语境表达不应被自动覆盖。
-
-例如：
-
-```md
-[[国际象棋：Knight|马]]
+```text
+Preserve Obsidian wikilink surface text, aliases, and title metadata as note names evolve.
 ```
 
-这里 `国际象棋：Knight` 是当前规范名称，`马` 是当时写作语境中的表达。即使未来继续重命名文件，正文里的 `马` 仍会被保留。
+## Core Idea
 
-## 主要功能
+Obsidian internal links can carry three layers of meaning:
 
-### 1. 编辑器补全默认冻结语境
+- **Canonical Name**: the current file name, which can evolve as your understanding changes.
+- **Aliases**: old titles, synonyms, and previous expressions stored in target-note frontmatter.
+- **Surface Form**: the exact wording used in the source note, stored as the wikilink display text.
 
-当你输入 `[[` 并通过 Obsidian 补全选择目标时，插件会把普通链接冻结为带显示文本的链接：
+Preserve Context keeps the surface form stable by default. File names may change, but the words you wrote in context should not be silently overwritten.
 
-```md
-[[目标]]
-```
-
-会变成：
+For example:
 
 ```md
-[[目标|目标]]
+[[International Chess: Knight|horse]]
 ```
 
-插入完成后，光标会选中显示文本区域，方便你立刻改成真正的语境表达。
+`International Chess: Knight` is the current canonical name, while `horse` is the surface form used in that context. If the file is renamed later, the displayed word stays intact.
 
-如果你输入的是 alias 或搜索词，例如：
+## Features
+
+### 1. Freeze completed links by default
+
+When you type `[[` and choose a target from Obsidian completion, the plugin turns a plain link into a display-text link:
 
 ```md
-[[马
+[[Target]]
 ```
 
-并补全到 `国际象棋：骑士`，插件会优先保留用户实际输入：
+becomes:
 
 ```md
-[[国际象棋：骑士|马]]
+[[Target|Target]]
 ```
 
-### 2. 选中文字建立链接并写入 aliases
+After insertion, the cursor selects the display-text region so you can immediately change it to the actual contextual wording.
 
-保留原插件的核心能力：选中正文中的词，再执行 `Create link with alias`，会生成带显示文本的链接，并把显示文本写入目标笔记的 `aliases`。
-
-例如选中：
+If the text you typed was an alias or search term, such as:
 
 ```md
-马
+[[horse
 ```
 
-选择目标 `国际象棋：骑士` 后得到：
+and completion resolves it to `International Chess: Knight`, the plugin keeps what you typed:
 
 ```md
-[[国际象棋：骑士|马]]
+[[International Chess: Knight|horse]]
 ```
 
-目标笔记会自动补充：
+### 2. Create links and write aliases
+
+The original plugin behavior is preserved: select text, run `Create link with alias`, and the plugin creates a display-text link while writing the display text into the target note's `aliases`.
+
+Selecting:
+
+```md
+horse
+```
+
+and linking it to `International Chess: Knight` creates:
+
+```md
+[[International Chess: Knight|horse]]
+```
+
+The target note receives:
 
 ```yaml
 aliases:
-  - 马
+  - horse
 ```
 
-aliases 会自动去重，并尽量保留已有 frontmatter。
+Aliases are deduplicated and existing frontmatter is preserved as much as possible.
 
-### 3. 文件重命名时保留旧标题
+### 3. Preserve old titles on rename
 
-当文件从 `国际象棋：骑士` 重命名为 `国际象棋：Knight` 时，插件会把旧标题加入该文件的 aliases：
+When a file is renamed from `International Chess: Knight` to `Chess: Knight`, the plugin adds the old title to the file's aliases:
 
 ```yaml
 aliases:
-  - 国际象棋：骑士
+  - International Chess: Knight
 ```
 
-同时，正文中已有的冻结链接只更新目标，不改变显示文本：
+It also synchronizes the note's frontmatter title with the new filename:
+
+```yaml
+title: Chess: Knight
+```
+
+Existing frozen links update their target but keep display text:
 
 ```md
-[[国际象棋：骑士|马]]
+[[International Chess: Knight|horse]]
 ```
 
-会变成：
+becomes:
 
 ```md
-[[国际象棋：Knight|马]]
+[[Chess: Knight|horse]]
 ```
 
-对于普通链接，插件默认把旧标题冻结为显示文本：
+Plain links are frozen by default with the old title as display text:
 
 ```md
-[[国际象棋：骑士]]
+[[International Chess: Knight]]
 ```
 
-重命名后变成：
+becomes:
 
 ```md
-[[国际象棋：Knight|国际象棋：骑士]]
+[[Chess: Knight|International Chess: Knight]]
 ```
 
-### 4. 尊重用户手动修改
+### 4. Respect manual changes
 
-用户优先于自动化。如果插件自动生成了显示文本，而你之后手动改回普通链接：
+User edits win over automation. If the plugin generated display text and you later remove it:
 
 ```md
-[[新标题|旧标题]]
+[[New title|Old title]]
 ```
 
-改为：
+to:
 
 ```md
-[[新标题]]
+[[New title]]
 ```
 
-插件会记录这次选择，并在后续重命名时尽量不再把同一处链接自动冻结回来。
+the plugin records that choice and avoids re-freezing the same link on later renames.
 
-### 5. 历史迁移工具
+### 5. Migrate existing vaults
 
-新增命令：
+The command:
 
 ```text
 Freeze Existing Links in Vault
 ```
 
-它会扫描整个 Vault，把已有普通 wikilink：
+scans the vault and converts existing plain wikilinks:
 
 ```md
-[[目标]]
+[[Target]]
 ```
 
-迁移为：
+to:
 
 ```md
-[[目标|目标]]
+[[Target|Target]]
 ```
 
-这个命令默认不会自动执行，适合你确认迁移策略后手动运行。建议在运行前备份 Vault 或使用 Git 提交当前状态。
+This command never runs automatically. Back up your vault or commit your current state before running it.
 
-## 不介入的场景
+### 6. Bilingual plugin UI
 
-Preserve Context 只在用户明确表达语境的时机介入。以下场景保持原生或外部系统行为：
+The plugin defaults to English. In settings, choose `English` or `中文` to localize:
 
-- 粘贴已有链接
-- 保存文件
-- 外部脚本写入
+- Settings labels and descriptions
+- Command palette names
+- Plugin notices
+
+Both language options remain available in settings.
+
+## Out of Scope
+
+Preserve Context only intervenes when the user explicitly creates or evolves wikilink context. These cases remain native or external-system behavior:
+
+- Pasted links
+- File save
+- External scripts
 - Canvas
 - Dataview
 - Bases
-- embed 链接，例如 `![[图片]]`
-- 代码块与行内代码中的链接
+- Embed links such as `![[Image]]`
+- Links in code blocks or inline code
 
-## 命令
+## Commands
 
-- `Create link with alias`：创建链接，并把显示文本写入目标笔记 aliases。
-- `Create link`：创建链接但不主动写 aliases。
-- `Toggle link display text`：为当前链接添加或移除显示文本。
-- `Freeze Existing Links in Vault`：手动迁移旧知识库中的普通链接。
+- `Create link with alias`: create a link and write the display text into target-note aliases.
+- `Create link`: create a link without proactively writing aliases.
+- `Toggle link display text`: add or remove display text for the current link.
+- `Freeze Existing Links in Vault`: manually migrate existing plain links.
 
-## 通过 BRAT 安装
+## Install with BRAT
 
-这个 fork 目前适合通过 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 作为 beta 插件安装。
+This fork is currently intended for installation through [BRAT](https://github.com/TfTHacker/obsidian42-brat) as a beta plugin.
 
-1. 先在 Obsidian 中安装并启用 BRAT。
-2. 打开命令面板，执行 `BRAT: Add a beta plugin for testing`。
-3. 输入本仓库地址：
+1. Install and enable BRAT in Obsidian.
+2. Open the command palette and run `BRAT: Add a beta plugin for testing`.
+3. Enter this repository URL:
 
 ```text
 https://github.com/Jialedove/obsidian-link-with-alias
 ```
 
-4. 让 BRAT 从 GitHub Release 安装最新版本。
-5. 安装完成后，在 Obsidian 的 Community plugins 中启用 `Link with Alias: Preserve Context`。
+4. Let BRAT install the latest version from GitHub Releases.
+5. Enable `Link with Alias: Preserve Context` in Obsidian's Community plugins.
 
-本仓库的 Release 会提供 BRAT/Obsidian 需要的 `main.js`、`manifest.json` 和插件 zip。建议优先使用最新 Release，而不是手动复制源码目录。
+Releases should provide the `main.js`, `manifest.json`, and plugin zip required by BRAT/Obsidian. Prefer the latest Release over manually copying source files.
 
-## 设置
+## Settings
 
-- `Preserve Context`：启用或关闭保留语境模式。
-- `Freeze completed links`：补全后自动冻结普通链接。
-- `Freeze plain links after rename`：重命名时把普通链接冻结为带旧标题显示文本的链接。
-- `Add old title as alias`：重命名时把旧标题写入目标笔记 aliases。
-- `Respect manual unfrozen links`：记录用户手动移除显示文本的选择。
-- `Copy selected text as link file`：沿用原插件设置，选中文字建链时是否把选中文本同时作为目标名。
-- `Capitalize link file name`：沿用原插件设置，选中文字作为目标名时是否首字母大写。
+- `Language`: choose English or Chinese for settings, commands, and notices.
+- `Preserve Context`: enable or disable preserve-context mode.
+- `Freeze completed links`: freeze links after Obsidian completion.
+- `Freeze plain links after rename`: freeze plain links with the old title after renaming.
+- `Add old title as alias`: write the old title into target-note aliases on rename.
+- `Respect manual unfrozen links`: remember when a user manually removes generated display text.
+- `Copy selected text as link file`: original plugin option for using selected text as the target file name.
+- `Capitalize link file name`: original plugin option for capitalizing the target file name.
 
-## 开发
+## Development
 
 ```bash
 npm ci
@@ -201,16 +226,16 @@ npm test
 npm run build
 ```
 
-开发模式：
+Development mode:
 
 ```bash
 npm run dev
 ```
 
-构建产物 `main.js` 不提交到仓库，发布时由构建流程生成。
+Build output `main.js` is not committed to the repository. It is generated during release.
 
-## 迁移风险说明
+## Migration Notes
 
-`Freeze Existing Links in Vault` 会批量修改 Markdown 文件。它会跳过已有显示文本、embed、代码块和行内代码，但仍建议先备份 Vault 或使用 Git 记录迁移前状态。
+`Freeze Existing Links in Vault` modifies Markdown files in bulk. It skips links that already have display text, embeds, code blocks, and inline code, but you should still back up the vault or commit first.
 
-重命名监听会写入目标笔记 frontmatter，并可能更新引用该标题的 Markdown 文件。插件只记录事实：旧标题和用户实际写下的词；不会推断哪个 alias 应该被删除。
+The rename listener writes target-note frontmatter and may update Markdown files that reference the old title. The plugin records facts: old titles and words the user actually wrote. It does not infer which alias should be deleted.

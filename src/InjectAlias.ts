@@ -32,3 +32,11 @@ export async function addMissingAliasesIntoFile(fileManager: FileManager, file: 
 		}
 	});
 }
+
+export async function syncTitleIntoFile(fileManager: FileManager, file: TFile): Promise<void> {
+	await fileManager.processFrontMatter(file, (frontmatter) => {
+		if (typeof frontmatter == "object") {
+			frontmatter.title = file.basename;
+		}
+	});
+}

@@ -2,7 +2,8 @@ import { App, Editor, EditorPosition, MarkdownFileInfo, MarkdownView, Notice, Pl
 import { EditorView, ViewUpdate } from "@codemirror/view";
 
 import { EditorCursorListener } from "./EditorCursorListener";
-import { addMissingAliasesIntoFile } from "./InjectAlias";
+import { addMissingAliasesIntoFile, syncTitleIntoFile } from "./InjectAlias";
+import { t } from "./i18n";
 import { Unregister } from "./ListenerRegistry";
 import { getReferenceCacheFromEditor, setLinkText } from "./MarkdownUtils";
 import {
@@ -84,6 +85,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 	preserveContextOverrides: PreserveContextOverride[] = [];
 	private generatedPreserveContextLinks: PreserveContextOverride[] = [];
 	private applyingEditorChange = false;
+	private registeredCommandIds: string[] = [];
 
 	constructor(app: App, manifest: PluginManifest) {
 		super(app, manifest);
@@ -93,46 +95,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		this.addCommand({
-			id: "create-link-with-alias",
-			name: "Create link with alias",
-			icon: "bracket-glyph",
-			editorCallback: (editor: Editor, ctx) => {
-				this.createLinkFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor(), {
-					makeAlias: true,
-					pathFromText: this.settings.copyDisplayText,
-				});
-			},
-		});
-		this.addCommand({
-			id: "create-link",
-			name: "Create link",
-			icon: "bracket-glyph",
-			editorCallback: (editor: Editor, ctx) => {
-				this.createLinkFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor(), {
-					makeAlias: false,
-					pathFromText: this.settings.copyDisplayText,
-				});
-			},
-		});
-
-		this.addCommand({
-			id: "toggle-link-display-text",
-			name: "Toggle link display text",
-			icon: "link-2",
-			editorCallback: (editor: Editor, ctx) => {
-				this.toggleLinkTextFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor());
-			},
-		});
-		this.addCommand({
-			id: "freeze-existing-links-in-vault",
-			name: "Freeze Existing Links in Vault",
-			icon: "snowflake",
-			callback: () => {
-				this.freezeExistingLinksInVault();
-			},
-		});
-
+		this.registerCommands();
 		this.registerEditorExtension(createPreserveContextEditorExtension(this));
 		this.registerEvent(
 			this.app.vault.on("rename", (file, oldPath) => {
@@ -141,6 +104,58 @@ export default class LinkWithAliasPlugin extends Plugin {
 		);
 
 		this.addSettingTab(new LinksSettingTab(this.app, this));
+	}
+
+	registerCommands(): void {
+		this.registeredCommandIds.forEach((commandId) => this.removeCommand(commandId));
+		this.registeredCommandIds = [];
+		this.addCommand({
+			id: "create-link-with-alias",
+			name: t(this.settings.language, "command.createLinkWithAlias"),
+			icon: "bracket-glyph",
+			editorCallback: (editor: Editor, ctx) => {
+				this.createLinkFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor(), {
+					makeAlias: true,
+					pathFromText: this.settings.copyDisplayText,
+				});
+			},
+		});
+		this.registeredCommandIds.push("create-link-with-alias");
+		this.addCommand({
+			id: "create-link",
+			name: t(this.settings.language, "command.createLink"),
+			icon: "bracket-glyph",
+			editorCallback: (editor: Editor, ctx) => {
+				this.createLinkFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor(), {
+					makeAlias: false,
+					pathFromText: this.settings.copyDisplayText,
+				});
+			},
+		});
+		this.registeredCommandIds.push("create-link");
+
+		this.addCommand({
+			id: "toggle-link-display-text",
+			name: t(this.settings.language, "command.toggleLinkDisplayText"),
+			icon: "link-2",
+			editorCallback: (editor: Editor, ctx) => {
+				this.toggleLinkTextFromSelection(this.getFileFromContext(ctx), editor, editor.getCursor());
+			},
+		});
+		this.registeredCommandIds.push("toggle-link-display-text");
+		this.addCommand({
+			id: "freeze-existing-links-in-vault",
+			name: t(this.settings.language, "command.freezeExistingLinksInVault"),
+			icon: "snowflake",
+			callback: () => {
+				this.freezeExistingLinksInVault();
+			},
+		});
+		this.registeredCommandIds.push("freeze-existing-links-in-vault");
+	}
+
+	refreshLanguage(): void {
+		this.registerCommands();
 	}
 
 	async loadSettings() {
@@ -342,6 +357,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 		if (this.settings.addOldTitleAliasOnRename) {
 			await addMissingAliasesIntoFile(this.app.fileManager, file, [oldTitle]);
 		}
+		await syncTitleIntoFile(this.app.fileManager, file);
 		let changedFiles = 0;
 		let changedLinks = 0;
 		const newGenerated: PreserveContextOverride[] = [];
@@ -369,13 +385,13 @@ export default class LinkWithAliasPlugin extends Plugin {
 			await this.saveSettings();
 		}
 		if (changedLinks > 0 || this.settings.addOldTitleAliasOnRename) {
-			new Notice(`Preserve Context: recorded "${oldTitle}" and updated ${changedLinks} link(s) in ${changedFiles} file(s).`);
+			new Notice(t(this.settings.language, "notice.renameComplete", { oldTitle, changedLinks, changedFiles }));
 		}
 	}
 
 	private async freezeExistingLinksInVault(): Promise<void> {
 		if (!this.settings.preserveContext) {
-			new Notice("Preserve Context is disabled.");
+			new Notice(t(this.settings.language, "notice.preserveContextDisabled"));
 			return;
 		}
 		let changedFiles = 0;
@@ -390,7 +406,7 @@ export default class LinkWithAliasPlugin extends Plugin {
 				return result.text;
 			});
 		}
-		new Notice(`Preserve Context: froze ${changedLinks} link(s) in ${changedFiles} file(s).`);
+		new Notice(t(this.settings.language, "notice.freezeExistingLinksInVault", { changedLinks, changedFiles }));
 	}
 
 	/**
